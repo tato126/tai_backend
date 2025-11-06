@@ -14,6 +14,7 @@
 - **PostgreSQL** (데이터베이스)
 - **Rome 1.18.0** (Google Trends RSS 파싱)
 - **SpringDoc OpenAPI 2.8.13** (API 문서화)
+- **Apache HttpClient 5** (RestClient 기반 HTTP 통신)
 - **Lombok** (보일러플레이트 코드 제거)
 
 ## ✨ 주요 기능
@@ -117,21 +118,25 @@ src/main/java/com/team8/tai_backend/
 │       └── WebClientConfig.java     # WebClient 설정
 ├── controller/
 │   ├── TrendController.java         # 트렌드 API
-│   └── TestController.java          # 테스트 API
+│   ├── NewTrendController.java      # 새 트렌드 처리
+│   ├── PythonApiController.java     # Python 서버 테스트
+│   └── RestClientController.java    # RestClient 테스트
 ├── service/
 │   ├── TrendService.java            # 트렌드 비즈니스 로직
+│   ├── NewTrendService.java         # 새 트렌드 서비스
 │   ├── GoogleTrendsRssService.java  # Google Trends RSS 파싱
-│   └── WebClientService.java        # Python 서버 통신
+│   ├── WebClientService.java        # Python 서버 통신 (WebFlux)
+│   └── RestClientService.java       # Python 서버 통신 (RestClient)
 ├── dto/
 │   ├── request/
-│   │   └── LLMRequest.java          # LLM 요청/응답 DTO
+│   │   ├── LLMRequest.java          # LLM 요청/응답 DTO
+│   │   └── TrendRssRequest.java     # 트렌드 RSS 요청 DTO
 │   └── response/
 │       ├── TrendResponse.java       # 트렌드 목록 응답
 │       ├── TrendDetailResponse.java # 트렌드 상세 응답
 │       └── TrendRssResponse.java    # RSS 파싱 응답
 ├── entity/
-│   ├── Trend.java                   # 트렌드 엔티티
-│   └── Reference.java               # 참조 URL 엔티티
+│   └── Trend.java                   # 트렌드 엔티티
 └── repository/
     └── TrendRepository.java         # Trend JPA Repository
 ```
@@ -329,6 +334,66 @@ docker network ls
 docker network inspect tai_backend_app-network
 ```
 
+## 🚀 프로덕션 배포 (CI/CD)
+
+### Self-hosted Runner + Docker
+
+SSH 접속이 불가능한 환경에서 GitHub Actions를 통해 자동 배포합니다.
+
+#### 배포 방식
+- **Self-hosted Runner**: 서버가 GitHub에 접속하여 작업을 가져옴 (아웃바운드 통신만 필요)
+- **Docker**: 환경 격리 및 빠른 배포/롤백
+- **로컬 빌드**: GHCR 없이 서버에서 직접 빌드하여 네트워크 오버헤드 최소화
+
+#### 배포 흐름
+
+```
+1. 개발자: git push origin main
+   ↓
+2. GitHub: 워크플로우 트리거
+   ↓
+3. Runner (서버): GitHub에서 작업 감지 (polling)
+   ↓
+4. Runner: Docker 이미지 빌드 (백업 생성)
+   ↓
+5. Runner: 기존 컨테이너 중지
+   ↓
+6. Runner: PostgreSQL 시작 및 헬스체크
+   ↓
+7. Runner: 애플리케이션 컨테이너 시작
+   ↓
+8. Runner: 실패 시 자동 롤백
+   ↓
+9. GitHub: 결과 표시 (성공/실패)
+```
+
+#### Self-hosted Runner 설치
+
+Self-hosted Runner 설치 및 설정 방법은 [SELFHOSTED_RUNNER_GUIDE.md](SELFHOSTED_RUNNER_GUIDE.md)를 참고하세요.
+
+**주요 내용:**
+- GitHub Runner 설치 및 등록
+- SystemD 서비스 설정 (`tai-backend.service`)
+- 워크플로우 설정 (`.github/workflows/deploy-selfhosted-docker.yml`)
+- 문제 해결 및 모니터링
+
+#### SystemD 서비스 (Docker 없이 실행)
+
+Docker 없이 직접 JAR를 실행하려면 `tai-backend.service` 파일을 사용할 수 있습니다:
+
+```bash
+# 서비스 파일 복사
+sudo cp tai-backend.service /etc/systemd/system/
+
+# 서비스 활성화 및 시작
+sudo systemctl daemon-reload
+sudo systemctl enable tai-backend
+sudo systemctl start tai-backend
+
+# 상태 확인
+sudo systemctl status tai-backend
+```
+
 ## 🗄 데이터베이스 스키마
 
 ### Trend 엔티티
@@ -417,17 +482,15 @@ curl -X POST http://localhost:8080/api/test/llm \
   -d '{"keyword": "연말정산"}'
 ```
 
-## 👥 개발 팀
-
-- [@chan](https://github.com/chan) - 백엔드 개발, Python 서버 연동
-- [@daeun](https://github.com/daniNote) - Google Trends 파싱
-- [@tato126](https://github.com/tato126) - 백엔드 개발
-- 외 Team 8 멤버들
-
 ### 관련 프로젝트
 
 - **Python LLM 백엔드**: [Team8-ToyProject4/tai_python_backend](https://github.com/Team8-ToyProject4/tai_python_backend)
 
+### 관련 문서
+
+- **Self-hosted Runner 설치 가이드**: [SELFHOSTED_RUNNER_GUIDE.md](SELFHOSTED_RUNNER_GUIDE.md)
+- **GitHub Actions 워크플로우**: [.github/workflows/deploy-selfhosted-docker.yml](.github/workflows/deploy-selfhosted-docker.yml)
+- **SystemD 서비스 파일**: [tai-backend.service](tai-backend.service)
+
 ## 📝 라이선스
 
-이 프로젝트는 [MIT License](LICENSE) 하에 배포됩니다.
